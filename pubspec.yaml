@@ -17,6 +17,7 @@ dependencies:
   shelf_router: ^1.1.4
   media_kit: ^1.2.6
   media_kit_libs_windows_audio: ^1.0.9
+  media_kit_libs_macos_audio: ^1.0.9
   window_manager: ^0.4.0
 
 dev_dependencies:

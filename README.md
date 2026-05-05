@@ -1,9 +1,11 @@
 # 🎵 OnlyAudio by AudioFeel
 
-Lecteur audio desktop Windows avec télécommande Android.
+Lecteur audio desktop Windows & macOS avec télécommande Android.
 
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows)
+![macOS](https://img.shields.io/badge/macOS-10.14%2B-lightgrey?logo=apple)
 ![Android](https://img.shields.io/badge/Android-5.0%2B-green?logo=android)
+![Flutter](https://img.shields.io/badge/Flutter-3.41%2B-blue?logo=flutter)
 ![Version](https://img.shields.io/badge/version-2.0.0-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -11,14 +13,16 @@ Lecteur audio desktop Windows avec télécommande Android.
 
 ## Fonctionnalités
 
-### 🖥️ Player Desktop (Windows)
-- Lecture audio : MP3, FLAC, WAV, OGG, M4A
-- Affichage des métadonnées (titre, artiste, album, pochette)
+### 🖥️ Player Desktop (Windows & macOS)
+- Lecture audio : MP3, FLAC, WAV, OGG, M4A, AAC
+- Affichage des métadonnées (titre, artiste, album, année, pochette)
 - Playlist complète avec shuffle et repeat
 - Barre de progression avec seek
 - Contrôle du volume
+- Plein écran
 - Interface sombre moderne
-- Installateur avec mise à jour automatique
+- Pre-buffering dual-player (changement de piste instantané)
+- Installateur Windows avec mise à jour automatique
 
 ### 📱 Télécommande Android
 - Contrôle du player desktop depuis votre téléphone
@@ -32,12 +36,19 @@ Lecteur audio desktop Windows avec télécommande Android.
 
 ## Installation
 
-### Desktop (Windows)
+### Desktop Windows
 1. Téléchargez `OnlyAudio_Setup.exe` depuis la [page Releases](../../releases/latest)
 2. Lancez l'installateur
 3. OnlyAudio est prêt !
 
 > La mise à jour détecte et désinstalle automatiquement la version précédente.
+
+### Desktop macOS
+1. Téléchargez `OnlyAudio-mac.zip` depuis la [page Releases](../../releases/latest)
+2. Décompressez et glissez `OnlyAudio.app` dans votre dossier Applications
+3. Au premier lancement : clic droit → Ouvrir (si Gatekeeper le bloque)
+
+> Pour compiler depuis les sources, voir [docs/macos_build.md](docs/macos_build.md).
 
 ### Télécommande Android
 1. Téléchargez `OnlyAudio_Remote.apk` depuis la [page Releases](../../releases/latest)
@@ -52,11 +63,10 @@ Lecteur audio desktop Windows avec télécommande Android.
 ## Comment ça marche
 
 ```
-┌──────────────┐     HTTP (port 5000)     ┌──────────────────┐
-│   OnlyAudio  │ ◄──────────────────────► │  OnlyAudio       │
-│   Desktop    │     réseau local Wi-Fi   │  Remote (Android) │
-│   (Windows)  │                          │                   │
-└──────────────┘                          └──────────────────┘
+┌──────────────────────┐     HTTP (port 5000)     ┌──────────────────┐
+│   OnlyAudio Desktop  │ ◄──────────────────────► │  OnlyAudio       │
+│  (Windows / macOS)   │     réseau local Wi-Fi   │  Remote (Android) │
+└──────────────────────┘                          └──────────────────┘
 ```
 
 Le player desktop embarque un serveur API sur le port 5000. La télécommande Android communique avec ce serveur pour envoyer les commandes et recevoir l'état de lecture en temps réel.
@@ -67,10 +77,10 @@ Le player desktop embarque un serveur API sur le port 5000. La télécommande An
 
 | Composant | Technologies |
 |-----------|-------------|
-| Player Desktop | Python, Kivy, pygame, Mutagen, Flask |
+| Player Desktop (Windows & macOS) | Flutter, Dart, media_kit (libmpv) |
 | Télécommande Android | Flutter, Dart, audio_service |
 | Communication | API REST HTTP (JSON) |
-| Installateur | PyInstaller + Inno Setup |
+| Installateur Windows | Inno Setup |
 
 ---
 
@@ -95,16 +105,25 @@ Le player desktop embarque un serveur API sur le port 5000. La télécommande An
 
 ## Build depuis les sources
 
-### Desktop
+### Desktop Windows
 ```powershell
-# Prérequis : Python 3.12, venv avec les dépendances
-.venv312\Scripts\python.exe -m PyInstaller onlyaudio.spec --noconfirm
+flutter pub get
+flutter build windows --release
 # Puis compiler l'installateur avec Inno Setup
-ISCC.exe installer.iss
+& "C:\Program Files\Inno Setup 7\ISCC.exe" installer.iss
+```
+
+### Desktop macOS
+Voir le guide complet : [docs/macos_build.md](docs/macos_build.md)
+
+```bash
+flutter pub get
+cd macos && pod install && cd ..
+flutter build macos --release
 ```
 
 ### Télécommande Android
-```powershell
+```bash
 cd remote_app
 flutter build apk --release
 # APK : build/app/outputs/flutter-apk/app-release.apk

@@ -9,7 +9,14 @@ void main() async {
   MediaKit.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(title: 'OnlyAudio by AudioFeel'),
+    const WindowOptions(
+      title: 'OnlyAudio by AudioFeel',
+      minimumSize: Size(700, 480),
+    ),
+    () async {
+      await windowManager.show();
+      await windowManager.focus();
+    },
   );
   runApp(const OnlyAudioApp());
 }
