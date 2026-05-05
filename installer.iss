@@ -13,12 +13,12 @@ SetupIconFile=onlyaudio.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\OnlyAudio.exe
+UninstallDisplayIcon={app}\onlyaudio_by_audiofeel.exe
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 ; Close running instance before install/uninstall
 CloseApplications=force
-CloseApplicationsFilter=OnlyAudio.exe
+CloseApplicationsFilter=onlyaudio_by_audiofeel.exe
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
@@ -28,15 +28,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\OnlyAudio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\OnlyAudio"; Filename: "{app}\OnlyAudio.exe"; IconFilename: "{app}\OnlyAudio.exe"
+Name: "{group}\OnlyAudio"; Filename: "{app}\onlyaudio_by_audiofeel.exe"; IconFilename: "{app}\onlyaudio_by_audiofeel.exe"
 Name: "{group}\Désinstaller OnlyAudio"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\OnlyAudio"; Filename: "{app}\OnlyAudio.exe"; Tasks: desktopicon
+Name: "{autodesktop}\OnlyAudio"; Filename: "{app}\onlyaudio_by_audiofeel.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\OnlyAudio.exe"; Description: "Lancer OnlyAudio"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\onlyaudio_by_audiofeel.exe"; Description: "Lancer OnlyAudio"; Flags: nowait postinstall skipifsilent
 
 [Code]
 function GetUninstallString(): String;

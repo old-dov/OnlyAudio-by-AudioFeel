@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/models/player_state.dart';
@@ -31,12 +30,15 @@ class PlayerController extends ChangeNotifier {
   final List<Track> _playlist = [];
   PlayerStateModel _state = PlayerStateModel();
   StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<bool>? _playingStateSub;
+  StreamSubscription<void>? _completionSub;
+  StreamSubscription<Duration>? _durationSub;
 
   bool _ready = false;
   bool _isPaused = true;
   Duration _currentPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
+  int? _preloadedNextIndex;
 
   List<Track> get playlist => List.unmodifiable(_playlist);
   bool get ready => _ready;
@@ -48,7 +50,12 @@ class PlayerController extends ChangeNotifier {
   String get searchQuery => _state.searchQuery;
   String get sortMode => _state.sortMode;
   Duration get currentPosition => _currentPosition;
-  Duration get currentDuration => _currentDuration;
+  // Fall back to the metadata duration if the stream hasn't fired yet
+  Duration get currentDuration {
+    if (_currentDuration.inMilliseconds > 0) return _currentDuration;
+    final ms = currentTrack?.durationMs ?? 0;
+    return ms > 0 ? Duration(milliseconds: ms) : Duration.zero;
+  }
   Track? get currentTrack =>
       _playlist.isNotEmpty && _state.currentIndex < _playlist.length
           ? _playlist[_state.currentIndex]
@@ -89,36 +96,69 @@ class PlayerController extends ChangeNotifier {
       _state.currentIndex = _playlist.isEmpty ? 0 : _playlist.length - 1;
     }
     await _audioService.setVolume(_state.volume);
-    _positionSub = _audioService.rawPlayer.positionStream.listen((pos) {
+    _positionSub = _audioService.positionStream.listen((pos) {
       _currentPosition = pos;
       _state.positionMs = pos.inMilliseconds;
       notifyListeners();
     });
-    _playerStateSub = _audioService.rawPlayer.playerStateStream.listen((st) {
-      _isPaused = !st.playing;
-      if (st.processingState == ProcessingState.completed) {
-        if (_state.isRepeat) {
-          unawaited(playAt(_state.currentIndex));
-        } else {
-          unawaited(next());
-        }
+    _durationSub = _audioService.durationStream.listen((dur) {
+      if (dur != _currentDuration) {
+        _currentDuration = dur;
+        notifyListeners();
       }
+    });
+    _playingStateSub = _audioService.playingStream.listen((playing) {
+      _isPaused = !playing;
       notifyListeners();
     });
-    _currentDuration = _audioService.rawPlayer.duration ?? Duration.zero;
+    _completionSub = _audioService.completionStream.listen((_) {
+      if (_state.isRepeat) {
+        unawaited(playAt(_state.currentIndex));
+      } else {
+        unawaited(next());
+      }
+    });
+
+    // Restore the current track (without auto-playing) so that the duration
+    // stream is populated and pressing PLAY actually produces sound.
+    if (_playlist.isNotEmpty) {
+      final seekTo = _state.positionMs > 0
+          ? Duration(milliseconds: _state.positionMs)
+          : null;
+      try {
+        await _audioService.playTrack(
+          _playlist[_state.currentIndex],
+          initialPosition: seekTo,
+          autoPlay: false,
+        );
+      } catch (e, st) {
+        // ignore: avoid_print
+        print('[PlayerController] init restore error: $e\n$st');
+      }
+    }
+
     _ready = true;
+    _isPaused = true;
     notifyListeners();
   }
 
   Future<void> disposeController() async {
     await _persist();
     await _positionSub?.cancel();
-    await _playerStateSub?.cancel();
+    await _playingStateSub?.cancel();
+    await _completionSub?.cancel();
+    await _durationSub?.cancel();
     await _audioService.dispose();
   }
 
+  // Full persist: playlist (with cover art) + state. Only call when playlist changes.
   Future<void> _persist() async {
     await _storageService.savePlaylist(_playlist);
+    await _storageService.saveState(_state);
+  }
+
+  // Fast persist: state only (no cover art serialization). Use for playback changes.
+  Future<void> _persistState() async {
     await _storageService.saveState(_state);
   }
 
@@ -153,11 +193,29 @@ class PlayerController extends ChangeNotifier {
     final track = _playlist[_state.currentIndex];
     final seekTo =
         restorePosition ? Duration(milliseconds: _state.positionMs) : null;
-    await _audioService.playTrack(track, initialPosition: seekTo);
-    _currentDuration = _audioService.rawPlayer.duration ?? Duration.zero;
+    _currentDuration = Duration.zero;
+    _currentPosition = Duration.zero;
     _isPaused = false;
-    await _persist();
-    notifyListeners();
+    notifyListeners(); // Met à jour l'UI immédiatement (titre, pochette)
+    try {
+      await _audioService.playTrack(track, initialPosition: seekTo);
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[PlayerController] playAt error: $e\n$st');
+    }
+    unawaited(_persistState());
+    _schedulePreload();
+  }
+
+  void _schedulePreload() {
+    if (_playlist.length < 2) return;
+    final nextIdx = _audioService.nextIndex(
+      currentIndex: _state.currentIndex,
+      length: _playlist.length,
+      shuffled: _state.isShuffled,
+    );
+    _preloadedNextIndex = nextIdx;
+    unawaited(_audioService.preloadNext(_playlist[nextIdx]));
   }
 
   Future<void> playPause() async {
@@ -169,17 +227,21 @@ class PlayerController extends ChangeNotifier {
       await _audioService.pause();
       _isPaused = true;
     }
-    await _persist();
+    await _persistState();
     notifyListeners();
   }
 
   Future<void> next() async {
     if (_playlist.isEmpty) return;
-    final idx = _audioService.nextIndex(
-      currentIndex: _state.currentIndex,
-      length: _playlist.length,
-      shuffled: _state.isShuffled,
-    );
+    final idx = (_preloadedNextIndex != null &&
+            _preloadedNextIndex! < _playlist.length)
+        ? _preloadedNextIndex!
+        : _audioService.nextIndex(
+            currentIndex: _state.currentIndex,
+            length: _playlist.length,
+            shuffled: _state.isShuffled,
+          );
+    _preloadedNextIndex = null;
     await playAt(idx);
   }
 
@@ -195,14 +257,14 @@ class PlayerController extends ChangeNotifier {
   Future<void> setVolume(double value) async {
     _state.volume = value.clamp(0, 1);
     await _audioService.setVolume(_state.volume);
-    await _persist();
+    await _persistState();
     notifyListeners();
   }
 
   Future<void> seek(Duration position) async {
     await _audioService.seek(position);
     _state.positionMs = position.inMilliseconds;
-    await _persist();
+    await _persistState();
     notifyListeners();
   }
 
@@ -271,9 +333,26 @@ class PlayerController extends ChangeNotifier {
       'title': current?.title ?? '',
       'artist': current?.artist ?? '',
       'album': current?.album ?? '',
+      'year': current?.year,
       'pos': _currentPosition.inMilliseconds,
       'dur': _currentDuration.inMilliseconds,
       'cover_b64': current?.coverBase64 ?? '',
+      'is_playing': !_isPaused,
+      'index': _state.currentIndex,
+    };
+  }
+
+  Map<String, dynamic> remotePlaylistPayload() {
+    return {
+      'tracks': List.generate(_playlist.length, (i) => {
+        'index': i,
+        'title': _playlist[i].title,
+        'folder': p.basename(p.dirname(_playlist[i].path)),
+      }),
+      'current_index': _state.currentIndex,
+      'is_shuffled': _state.isShuffled,
+      'is_repeat': _state.isRepeat,
+      'volume': _state.volume,
     };
   }
 

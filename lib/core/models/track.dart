@@ -5,6 +5,7 @@ class Track {
     this.artist = 'Unknown Artist',
     this.album = 'Unknown Album',
     this.durationMs = 0,
+    this.year,
     this.coverBase64 = '',
   });
 
@@ -13,6 +14,7 @@ class Track {
   final String artist;
   final String album;
   final int durationMs;
+  final int? year;
   final String coverBase64;
 
   Map<String, dynamic> toJson() {
@@ -22,6 +24,7 @@ class Track {
       'artist': artist,
       'album': album,
       'durationMs': durationMs,
+      'year': year,
       'coverBase64': coverBase64,
     };
   }
@@ -33,6 +36,7 @@ class Track {
       artist: json['artist'] as String? ?? 'Unknown Artist',
       album: json['album'] as String? ?? 'Unknown Album',
       durationMs: json['durationMs'] as int? ?? 0,
+      year: json['year'] as int?,
       coverBase64: json['coverBase64'] as String? ?? '',
     );
   }

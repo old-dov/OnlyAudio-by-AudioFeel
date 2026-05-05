@@ -16,6 +16,7 @@ class MetadataService {
         artist: metadata.trackArtistNames?.join(', ') ?? 'Unknown Artist',
         album: metadata.albumName ?? 'Unknown Album',
         durationMs: metadata.trackDuration ?? 0,
+        year: metadata.year,
         coverBase64: metadata.albumArt == null
             ? ''
             : base64Encode(metadata.albumArt!),

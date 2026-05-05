@@ -10,6 +10,8 @@ class RemoteStatus {
   final int posMs;
   final int durMs;
   final String coverBase64;
+  final bool isPlaying;
+  final int? year;
 
   const RemoteStatus({
     this.title = '',
@@ -18,6 +20,8 @@ class RemoteStatus {
     this.posMs = 0,
     this.durMs = 0,
     this.coverBase64 = '',
+    this.isPlaying = false,
+    this.year,
   });
 
   factory RemoteStatus.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,8 @@ class RemoteStatus {
       posMs: (json['pos'] as num?)?.toInt() ?? 0,
       durMs: (json['dur'] as num?)?.toInt() ?? 0,
       coverBase64: json['cover_b64'] as String? ?? '',
+      isPlaying: json['is_playing'] as bool? ?? false,
+      year: json['year'] as int?,
     );
   }
 }
