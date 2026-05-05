@@ -4,6 +4,7 @@ Lecteur audio desktop Windows & macOS avec télécommande Android.
 
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-blue?logo=windows)
 ![macOS](https://img.shields.io/badge/macOS-10.14%2B-lightgrey?logo=apple)
+![Linux](https://img.shields.io/badge/Linux-x64-orange?logo=linux)
 ![Android](https://img.shields.io/badge/Android-5.0%2B-green?logo=android)
 ![Flutter](https://img.shields.io/badge/Flutter-3.41%2B-blue?logo=flutter)
 ![Version](https://img.shields.io/badge/version-2.0.0-brightgreen)
@@ -13,7 +14,7 @@ Lecteur audio desktop Windows & macOS avec télécommande Android.
 
 ## Fonctionnalités
 
-### 🖥️ Player Desktop (Windows & macOS)
+### 🖥️ Player Desktop (Windows, macOS & Linux)
 - Lecture audio : MP3, FLAC, WAV, OGG, M4A, AAC
 - Affichage des métadonnées (titre, artiste, album, année, pochette)
 - Playlist complète avec shuffle et repeat
@@ -50,6 +51,13 @@ Lecteur audio desktop Windows & macOS avec télécommande Android.
 
 > Pour compiler depuis les sources, voir [docs/macos_build.md](docs/macos_build.md).
 
+### Desktop Linux
+1. Téléchargez `OnlyAudio-x86_64.AppImage` depuis la [page Releases](../../releases/latest)
+2. Rendez-le exécutable : `chmod +x OnlyAudio-x86_64.AppImage`
+3. Lancez : `./OnlyAudio-x86_64.AppImage`
+
+> Pour compiler depuis les sources, voir [docs/linux_build.md](docs/linux_build.md).
+
 ### Télécommande Android
 1. Téléchargez `OnlyAudio_Remote.apk` depuis la [page Releases](../../releases/latest)
 2. Installez l'APK sur votre téléphone
@@ -63,10 +71,10 @@ Lecteur audio desktop Windows & macOS avec télécommande Android.
 ## Comment ça marche
 
 ```
-┌──────────────────────┐     HTTP (port 5000)     ┌──────────────────┐
-│   OnlyAudio Desktop  │ ◄──────────────────────► │  OnlyAudio       │
-│  (Windows / macOS)   │     réseau local Wi-Fi   │  Remote (Android) │
-└──────────────────────┘                          └──────────────────┘
+┌──────────────────────────────┐     HTTP (port 5000)     ┌──────────────────┐
+│     OnlyAudio Desktop        │ ◄──────────────────────► │  OnlyAudio       │
+│  (Windows / macOS / Linux)   │     réseau local Wi-Fi   │  Remote (Android) │
+└──────────────────────────────┘                          └──────────────────┘
 ```
 
 Le player desktop embarque un serveur API sur le port 5000. La télécommande Android communique avec ce serveur pour envoyer les commandes et recevoir l'état de lecture en temps réel.
@@ -77,7 +85,7 @@ Le player desktop embarque un serveur API sur le port 5000. La télécommande An
 
 | Composant | Technologies |
 |-----------|-------------|
-| Player Desktop (Windows & macOS) | Flutter, Dart, media_kit (libmpv) |
+| Player Desktop (Windows, macOS & Linux) | Flutter, Dart, media_kit (libmpv) |
 | Télécommande Android | Flutter, Dart, audio_service |
 | Communication | API REST HTTP (JSON) |
 | Installateur Windows | Inno Setup |
@@ -120,6 +128,14 @@ Voir le guide complet : [docs/macos_build.md](docs/macos_build.md)
 flutter pub get
 cd macos && pod install && cd ..
 flutter build macos --release
+```
+
+### Desktop Linux
+Voir le guide complet : [docs/linux_build.md](docs/linux_build.md)
+
+```bash
+flutter pub get
+flutter build linux --release
 ```
 
 ### Télécommande Android
