@@ -116,9 +116,36 @@ Le player desktop embarque un serveur API sur le port 5000. La télécommande An
 ### Desktop Windows
 ```powershell
 flutter pub get
-flutter build windows --release
-# Puis compiler l'installateur avec Inno Setup
-& "C:\Program Files\Inno Setup 7\ISCC.exe" installer.iss
+./scripts/build_windows_release.ps1
+```
+
+Pour preparer directement les livrables de distribution dans `dist` :
+
+```powershell
+./scripts/publish_windows_release.ps1
+```
+
+Ce script :
+- lance le build Windows release
+- compile l'installateur
+- met a jour `dist/OnlyAudio/` avec la version portable
+- copie `OnlyAudio_Setup.exe` dans `dist/`
+
+Le script accepte un compilateur Inno Setup explicite et refuse les builds preview par defaut.
+
+```powershell
+# Utiliser un ISCC.exe stable installe ailleurs
+./scripts/build_windows_release.ps1 -IsccPath "D:\Tools\Inno Setup 7\ISCC.exe"
+
+# Ou definir le chemin une fois pour la session
+$env:ONLYAUDIO_ISCC_PATH = "D:\Tools\Inno Setup 7\ISCC.exe"
+./scripts/build_windows_release.ps1
+
+# Autoriser volontairement une version preview si necessaire
+./scripts/build_windows_release.ps1 -AllowPreview
+
+# Publier tous les livrables dans dist avec un ISCC.exe explicite
+./scripts/publish_windows_release.ps1 -IsccPath "D:\Tools\Inno Setup 7\ISCC.exe"
 ```
 
 ### Desktop macOS

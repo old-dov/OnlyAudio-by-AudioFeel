@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart' hide Track;
 import 'package:media_kit/media_kit.dart' show Player, Media;
 
@@ -16,9 +17,11 @@ class AudioService {
   Player _main = Player();
   Player _prefetch = Player();
   final Random _random = Random();
+  Future<void> _audioOp = Future.value();
 
   HttpServer? _server;
   int _serverPort = 0;
+  int _issuedToken = 0;
 
   int _currentToken = 0;
   String? _currentTrackPath;
@@ -43,19 +46,40 @@ class AudioService {
     _startFileServer();
   }
 
+  Future<T> _serialize<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _audioOp = _audioOp.catchError((_) {}).then((_) async {
+      try {
+        completer.complete(await action());
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  int _reserveToken() {
+    _issuedToken += 1;
+    return _issuedToken;
+  }
+
   // ── Re-wire stream controllers to whichever player is _main ────────────────
   void _subscribeMain() {
-    for (final s in _mainSubs) s.cancel();
+    for (final s in _mainSubs) {
+      s.cancel();
+    }
     _mainSubs.clear();
     _mainSubs.addAll([
       _main.stream.position.listen(_posSC.add),
       _main.stream.duration.listen(_durSC.add),
       _main.stream.playing.listen((v) {
-        print('[AudioService] playing: $v');
+        debugPrint('[AudioService] playing: $v');
         _playSC.add(v);
       }),
-      _main.stream.buffering.listen((v) => print('[AudioService] buffering: $v')),
-      _main.stream.error.listen((e) => print('[AudioService] error: $e')),
+      _main.stream.buffering.listen(
+        (v) => debugPrint('[AudioService] buffering: $v'),
+      ),
+      _main.stream.error.listen((e) => debugPrint('[AudioService] error: $e')),
       _main.stream.completed.where((c) => c).listen((_) => _compSC.add(null)),
     ]);
   }
@@ -65,10 +89,10 @@ class AudioService {
     HttpServer.bind(InternetAddress.loopbackIPv4, 0).then((server) {
       _server = server;
       _serverPort = server.port;
-      print('[AudioService] file server on port $_serverPort');
+      debugPrint('[AudioService] file server on port $_serverPort');
       server.listen(
         (req) => unawaited(_serveFile(req)),
-        onError: (Object e) => print('[AudioService] server error: $e'),
+        onError: (Object e) => debugPrint('[AudioService] server error: $e'),
       );
     });
   }
@@ -133,7 +157,7 @@ class AudioService {
         ..headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
       await file.openRead().pipe(request.response);
     } catch (e) {
-      print('[AudioService] _serveFile error: $e');
+      debugPrint('[AudioService] _serveFile error: $e');
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         await request.response.close();
@@ -155,21 +179,23 @@ class AudioService {
 
   // ── Pre-load next track silently in _prefetch ───────────────────────────────
   Future<void> preloadNext(Track track) async {
-    if (_serverPort == 0) return;
-    if (_nextTrackPath == track.path && _nextToken > 0) return;
+    return _serialize(() async {
+      if (_serverPort == 0) return;
+      if (_nextTrackPath == track.path && _nextToken > 0) return;
 
-    _nextToken = _currentToken + 1;
-    _nextTrackPath = track.path;
-    final url = 'http://127.0.0.1:$_serverPort/$_nextToken';
-    print('[AudioService] preload: ${track.path}');
-    try {
-      await _prefetch.setVolume(0);
-      unawaited(_prefetch.open(Media(url), play: false));
-    } catch (e) {
-      print('[AudioService] preload error: $e');
-      _nextToken = 0;
-      _nextTrackPath = null;
-    }
+      _nextToken = _reserveToken();
+      _nextTrackPath = track.path;
+      final url = 'http://127.0.0.1:$_serverPort/$_nextToken';
+      debugPrint('[AudioService] preload: ${track.path}');
+      try {
+        await _prefetch.setVolume(0);
+        unawaited(_prefetch.open(Media(url), play: false));
+      } catch (e) {
+        debugPrint('[AudioService] preload error: $e');
+        _nextToken = 0;
+        _nextTrackPath = null;
+      }
+    });
   }
 
   // ── Open / swap ─────────────────────────────────────────────────────────────
@@ -178,57 +204,61 @@ class AudioService {
     Duration? initialPosition,
     bool autoPlay = true,
   }) async {
-    // Fast path: track is pre-buffered and no seek needed → instant swap
-    if (_nextToken > 0 &&
-        _nextTrackPath == track.path &&
-        initialPosition == null) {
-      print('[AudioService] swap to preloaded: ${track.path}');
-      _currentToken = _nextToken;
-      _currentTrackPath = _nextTrackPath;
-      _nextToken = 0;
-      _nextTrackPath = null;
+    return _serialize(() async {
+      // Fast path: track is pre-buffered and no seek needed → instant swap
+      if (_nextToken > 0 &&
+          _nextTrackPath == track.path &&
+          initialPosition == null) {
+        debugPrint('[AudioService] swap to preloaded: ${track.path}');
+        _currentToken = _nextToken;
+        _currentTrackPath = _nextTrackPath;
+        _nextToken = 0;
+        _nextTrackPath = null;
 
-      final oldMain = _main;
-      _main = _prefetch;
-      _prefetch = Player(); // fresh player for the next preload
+        final oldMain = _main;
+        _main = _prefetch;
+        _prefetch = Player(); // fresh player for the next preload
 
-      _subscribeMain();
-      await _main.setVolume((_volume * 100.0).clamp(0.0, 100.0));
-      if (autoPlay) unawaited(_main.play());
-      unawaited(oldMain.dispose());
-      return;
-    }
+        _subscribeMain();
+        await _main.setVolume((_volume * 100.0).clamp(0.0, 100.0));
+        if (autoPlay) unawaited(_main.play());
+        // Stop then dispose sequentially to prevent audio overlap and
+        // avoid callback-after-delete crash from racing async operations
+        unawaited(oldMain.stop().then((_) => oldMain.dispose()));
+        return;
+      }
 
-    // Cancel in-progress prefetch if it's a different track
-    if (_nextToken > 0) {
-      _nextToken = 0;
-      _nextTrackPath = null;
-      unawaited(_prefetch.stop());
-    }
+      // Cancel in-progress prefetch if it's a different track
+      if (_nextToken > 0) {
+        _nextToken = 0;
+        _nextTrackPath = null;
+        await _prefetch.stop();
+      }
 
-    // Normal open
-    var waited = 0;
-    while (_serverPort == 0 && waited < 3000) {
-      await Future.delayed(const Duration(milliseconds: 50));
-      waited += 50;
-    }
-    _currentToken++;
-    _currentTrackPath = track.path;
-    final url = 'http://127.0.0.1:$_serverPort/$_currentToken';
-    print('[AudioService] open (play=$autoPlay): ${track.path}');
+      // Normal open
+      var waited = 0;
+      while (_serverPort == 0 && waited < 3000) {
+        await Future.delayed(const Duration(milliseconds: 50));
+        waited += 50;
+      }
+      _currentToken = _reserveToken();
+      _currentTrackPath = track.path;
+      final url = 'http://127.0.0.1:$_serverPort/$_currentToken';
+      debugPrint('[AudioService] open (play=$autoPlay): ${track.path}');
 
-    if (initialPosition != null && initialPosition > Duration.zero) {
-      await _main.open(Media(url), play: autoPlay);
-      await _main.seek(initialPosition);
-    } else {
-      unawaited(_main.open(Media(url), play: autoPlay));
-    }
+      if (initialPosition != null && initialPosition > Duration.zero) {
+        await _main.open(Media(url), play: autoPlay);
+        await _main.seek(initialPosition);
+      } else {
+        await _main.open(Media(url), play: autoPlay);
+      }
+    });
   }
 
-  Future<void> play()  => _main.play();
-  Future<void> pause() => _main.pause();
-  Future<void> stop()  => _main.stop();
-  Future<void> seek(Duration position) => _main.seek(position);
+  Future<void> play()  => _serialize(() => _main.play());
+  Future<void> pause() => _serialize(() => _main.pause());
+  Future<void> stop()  => _serialize(() => _main.stop());
+  Future<void> seek(Duration position) => _serialize(() => _main.seek(position));
 
   int nextIndex({
     required int currentIndex,
@@ -246,7 +276,9 @@ class AudioService {
   }
 
   Future<void> dispose() async {
-    for (final s in _mainSubs) await s.cancel();
+    for (final s in _mainSubs) {
+      await s.cancel();
+    }
     await _server?.close(force: true);
     await _main.dispose();
     await _prefetch.dispose();

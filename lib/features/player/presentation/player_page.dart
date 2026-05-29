@@ -1,7 +1,6 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -21,9 +20,6 @@ const _kCyan   = Color(0xFF00C8FF);
 const _kGreen  = Color(0xFF009900);
 const _kOrange = Color(0xFF8B4500);
 const _kRed    = Color(0xFF6B1515);
-const _kBarGreen  = Color(0xFF00C000);
-const _kBarYellow = Color(0xFFCCCC00);
-const _kBarOrange = Color(0xFFCC7000);
 
 // ── bouton style Kivy (rectangulaire, bords arrondis) ─────────────────────────
 Widget _darkBtn(
@@ -62,91 +58,16 @@ Widget _darkBtn(
   );
 }
 
-// ── spectrum analyzer painter ─────────────────────────────────────────────────
-class _SpectrumPainter extends CustomPainter {
-  final List<double> bars;
-  _SpectrumPainter(this.bars);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const gap = 2.0;
-    final n = bars.length;
-    final barW = (size.width - (n - 1) * gap) / n;
-    for (var i = 0; i < n; i++) {
-      final ratio = i / max(1, n - 1);
-      final color = ratio < 0.65
-          ? _kBarGreen
-          : ratio < 0.85
-              ? _kBarYellow
-              : _kBarOrange;
-      final h = bars[i] * size.height;
-      final x = i * (barW + gap);
-      canvas.drawRect(
-        Rect.fromLTWH(x, size.height - h, barW, h),
-        Paint()..color = color,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SpectrumPainter old) => true;
-}
-
-class _SpectrumWidget extends StatefulWidget {
-  final bool isPlaying;
-  final double positionSec;
-  const _SpectrumWidget({required this.isPlaying, required this.positionSec});
-
-  @override
-  State<_SpectrumWidget> createState() => _SpectrumWidgetState();
-}
-
-class _SpectrumWidgetState extends State<_SpectrumWidget>
-    with SingleTickerProviderStateMixin {
-  static const _n = 48;
-  final _bars = List<double>.filled(_n, 0);
-  final _phases = List<double>.generate(
-      _n, (_) => Random().nextDouble() * pi * 2);
-  final _speeds = List<double>.generate(
-      _n, (_) => 2.0 + Random().nextDouble() * 4.0);
-  late final Ticker _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker(_tick)..start();
-  }
-
-  void _tick(Duration _) {
-    final t = widget.positionSec;
-    if (widget.isPlaying) {
-      for (var i = 0; i < _n; i++) {
-        var base = 0.4 + 0.3 * sin(t * _speeds[i] + _phases[i]);
-        base += 0.2 * sin(t * _speeds[i] * 1.7 + _phases[i] * 0.6);
-        final target =
-            (base + (Random().nextDouble() - 0.5) * 0.2).clamp(0.0, 1.0);
-        _bars[i] += (target - _bars[i]) * 0.45;
-      }
-    } else {
-      for (var i = 0; i < _n; i++) {
-        _bars[i] *= 0.88;
-        if (_bars[i] < 0.01) _bars[i] = 0;
-      }
-    }
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-        painter: _SpectrumPainter(List.unmodifiable(_bars)),
-        child: const SizedBox.expand(),
-      );
+Widget _brandLogo({double height = 28, BoxFit fit = BoxFit.contain}) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(6),
+    child: Image.asset(
+      'logo.JPG',
+      height: height,
+      fit: fit,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    ),
+  );
 }
 
 // ── main page ───────────────────────────────────────────────────────────────
@@ -166,8 +87,11 @@ class _PlayerPageState extends State<PlayerPage> {
   int _lastCurrentIndex = -1;
   double? _seekingValue; // valeur locale pendant le drag du slider
   bool _isFullScreen = false;
+  bool _playlistVisible = true;
   Uint8List? _cachedCoverBytes;
   String? _cachedCoverTrackPath;
+  DateTime _now = DateTime.now();
+  Timer? _clockTimer;
 
   @override
   void initState() {
@@ -180,6 +104,10 @@ class _PlayerPageState extends State<PlayerPage> {
     );
     _remoteApi = RemoteApiServer(_controller);
     _controller.addListener(_onTrackChanged);
+    _clockTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => setState(() => _now = DateTime.now()),
+    );
     _bootstrap();
   }
 
@@ -197,18 +125,30 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  void _updateCoverCache() {
+  Future<void> _updateCoverCache() async {
     final track = _controller.currentTrack;
     final path = track?.path;
     if (path == _cachedCoverTrackPath) return;
     _cachedCoverTrackPath = path;
-    final cover = track?.coverBase64 ?? '';
-    _cachedCoverBytes = cover.isNotEmpty ? base64Decode(cover) : null;
+    if (track == null) {
+      _cachedCoverBytes = null;
+      setState(() {});
+      return;
+    }
+    // Décalage pour éviter le conflit avec le pipeline d'événements media_kit
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (!mounted || _cachedCoverTrackPath != path) return;
+    try {
+      _cachedCoverBytes = await MetadataService().coverBytes(track.path);
+    } catch (_) {
+      _cachedCoverBytes = null;
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _bootstrap() async {
     await _controller.init();
-    _updateCoverCache();
+    await _updateCoverCache();
     _searchController.text = _controller.searchQuery;
     try {
       await _remoteApi.start();
@@ -220,6 +160,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _controller.removeListener(_onTrackChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -312,12 +253,44 @@ class _PlayerPageState extends State<PlayerPage> {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
-          const Text('OnlyAudio',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold)),
+          _brandLogo(height: 24),
+          const SizedBox(width: 8),
+          const Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('OnlyAudio',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold)),
+              Text('Your sound. Your way.',
+                  style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
           const Spacer(),
+          // Horloge
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}:${_now.second.toString().padLeft(2, '0')}',
+                style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()]),
+              ),
+              Text(
+                '${_now.day.toString().padLeft(2, '0')}/${_now.month.toString().padLeft(2, '0')}/${_now.year}',
+                style: const TextStyle(color: Colors.white30, fontSize: 9.5),
+              ),
+            ],
+          ),
           const SizedBox(width: 16),
           // Plein écran
           InkWell(
@@ -361,8 +334,37 @@ class _PlayerPageState extends State<PlayerPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(width: 320, child: _buildPlaylistPanel()),
-          Container(width: 1, color: const Color(0xFF252525)),
+          // Playlist avec animation d'ouverture/fermeture
+          ClipRect(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              width: _playlistVisible ? 320 : 0,
+              child: OverflowBox(
+                maxWidth: 320,
+                minWidth: 320,
+                alignment: Alignment.centerLeft,
+                child: SizedBox(width: 320, child: _buildPlaylistPanel()),
+              ),
+            ),
+          ),
+          // Volet toggle playlist
+          GestureDetector(
+            onTap: () => setState(() => _playlistVisible = !_playlistVisible),
+            child: Container(
+              width: 14,
+              color: const Color(0xFF111111),
+              child: Center(
+                child: Icon(
+                  _playlistVisible
+                      ? Icons.chevron_left
+                      : Icons.chevron_right,
+                  size: 14,
+                  color: Colors.white24,
+                ),
+              ),
+            ),
+          ),
           Expanded(child: _buildCenterPanel()),
           Container(width: 1, color: const Color(0xFF252525)),
           SizedBox(width: 200, child: _buildControlsPanel()),
@@ -458,10 +460,39 @@ class _PlayerPageState extends State<PlayerPage> {
           child: Container(
             color: const Color(0xFF060606),
             child: visible.isEmpty
-                ? const Center(
-                    child: Text('Aucun résultat',
-                        style: TextStyle(
-                            color: Colors.white30, fontSize: 12)))
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final logoHeight = constraints.maxHeight < 150 ? 56.0 : 92.0;
+                      final titleSize = constraints.maxHeight < 150 ? 12.0 : 15.0;
+                      final bodySize = constraints.maxHeight < 150 ? 10.0 : 12.0;
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Opacity(
+                                opacity: 0.92,
+                                child: _brandLogo(height: logoHeight),
+                              ),
+                              SizedBox(height: constraints.maxHeight < 150 ? 8 : 14),
+                              Text('Bienvenue dans OnlyAudio',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: titleSize,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 6),
+                              Text('Ajoute un fichier ou un dossier pour commencer',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.white38, fontSize: bodySize)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  )
                 : Focus(
                     onKeyEvent: (node, event) {
                       if (event is! KeyDownEvent &&
@@ -569,12 +600,56 @@ class _PlayerPageState extends State<PlayerPage> {
   Widget _buildCenterPanel() {
     final track = _controller.currentTrack;
     final coverBytes = _cachedCoverBytes;
-    final posSec =
-        _controller.currentPosition.inMilliseconds / 1000.0;
     final durMs =
         max(1, _controller.currentDuration.inMilliseconds).toDouble();
     final posMs = min(
         _controller.currentPosition.inMilliseconds.toDouble(), durMs);
+
+    if (track == null) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 260;
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Container(
+                padding: EdgeInsets.all(compact ? 14 : 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xA0121216),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _brandLogo(height: compact ? 110 : 180, fit: BoxFit.contain),
+                    SizedBox(height: compact ? 10 : 18),
+                    Text(
+                      'OnlyAudio',
+                      style: TextStyle(
+                        fontSize: compact ? 19 : 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Ton lecteur audio desktop, rapide et centré sur l\'essentiel.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: compact ? 11 : 13,
+                        color: Colors.white60,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
@@ -608,7 +683,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      track?.title ?? 'Aucun titre',
+                      track.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -618,7 +693,7 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      track?.artist ?? '',
+                      track.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -628,7 +703,7 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      track?.album ?? '',
+                      track.album,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -648,14 +723,6 @@ class _PlayerPageState extends State<PlayerPage> {
             ],
           ),
           const SizedBox(height: 8),
-          // vu-mètre
-          Expanded(
-            child: _SpectrumWidget(
-              isPlaying: !_controller.isPaused,
-              positionSec: posSec,
-            ),
-          ),
-          const SizedBox(height: 6),
           // barre de progression
           Row(
             children: [

@@ -56,6 +56,7 @@ class PlayerController extends ChangeNotifier {
     final ms = currentTrack?.durationMs ?? 0;
     return ms > 0 ? Duration(milliseconds: ms) : Duration.zero;
   }
+
   Track? get currentTrack =>
       _playlist.isNotEmpty && _state.currentIndex < _playlist.length
           ? _playlist[_state.currentIndex]
@@ -65,7 +66,8 @@ class PlayerController extends ChangeNotifier {
     final indices = List<int>.generate(_playlist.length, (i) => i);
     switch (_state.sortMode) {
       case 'title':
-        indices.sort((a, b) => _playlist[a].title
+        indices.sort((a, b) => _playlist[a]
+            .title
             .toLowerCase()
             .compareTo(_playlist[b].title.toLowerCase()));
       case 'folder':
@@ -233,14 +235,14 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> next() async {
     if (_playlist.isEmpty) return;
-    final idx = (_preloadedNextIndex != null &&
-            _preloadedNextIndex! < _playlist.length)
-        ? _preloadedNextIndex!
-        : _audioService.nextIndex(
-            currentIndex: _state.currentIndex,
-            length: _playlist.length,
-            shuffled: _state.isShuffled,
-          );
+    final idx =
+        (_preloadedNextIndex != null && _preloadedNextIndex! < _playlist.length)
+            ? _preloadedNextIndex!
+            : _audioService.nextIndex(
+                currentIndex: _state.currentIndex,
+                length: _playlist.length,
+                shuffled: _state.isShuffled,
+              );
     _preloadedNextIndex = null;
     await playAt(idx);
   }
@@ -336,7 +338,7 @@ class PlayerController extends ChangeNotifier {
       'year': current?.year,
       'pos': _currentPosition.inMilliseconds,
       'dur': _currentDuration.inMilliseconds,
-      'cover_b64': current?.coverBase64 ?? '',
+      // 'cover_b64' supprimé côté desktop
       'is_playing': !_isPaused,
       'index': _state.currentIndex,
     };
@@ -344,11 +346,13 @@ class PlayerController extends ChangeNotifier {
 
   Map<String, dynamic> remotePlaylistPayload() {
     return {
-      'tracks': List.generate(_playlist.length, (i) => {
-        'index': i,
-        'title': _playlist[i].title,
-        'folder': p.basename(p.dirname(_playlist[i].path)),
-      }),
+      'tracks': List.generate(
+          _playlist.length,
+          (i) => {
+                'index': i,
+                'title': _playlist[i].title,
+                'folder': p.basename(p.dirname(_playlist[i].path)),
+              }),
       'current_index': _state.currentIndex,
       'is_shuffled': _state.isShuffled,
       'is_repeat': _state.isRepeat,
@@ -356,5 +360,6 @@ class PlayerController extends ChangeNotifier {
     };
   }
 
-  String exportPlaylistJson() => jsonEncode(_playlist.map((t) => t.toJson()).toList());
+  String exportPlaylistJson() =>
+      jsonEncode(_playlist.map((t) => t.toJson()).toList());
 }

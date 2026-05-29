@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../features/player/presentation/player_page.dart';
 
 class OnlyAudioApp extends StatelessWidget {
-  const OnlyAudioApp({super.key});
+  const OnlyAudioApp({super.key, this.home});
+
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +22,7 @@ class OnlyAudioApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const PlayerPage(),
+      home: home ?? const PlayerPage(),
     );
   }
 }

@@ -4,7 +4,6 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../services/api_client.dart';
 import '../services/remote_audio_handler.dart';
@@ -16,9 +15,6 @@ const _kBg        = Color(0xFF000000);
 const _kCyan      = Color(0xFF00C8FF);
 const _kGreen     = Color(0xFF009900);
 const _kOrange    = Color(0xFF8B4500);
-const _kBarGreen  = Color(0xFF00C000);
-const _kBarYellow = Color(0xFFCCCC00);
-const _kBarOrange = Color(0xFFCC7000);
 
 // ── bouton style lecteur ──────────────────────────────────────────────────────
 Widget _darkBtn(
@@ -58,93 +54,6 @@ Widget _darkBtn(
       ),
     ),
   );
-}
-
-// ── analyseur de spectre (animé, identique au lecteur) ───────────────────────
-class _SpectrumPainter extends CustomPainter {
-  final List<double> bars;
-  _SpectrumPainter(this.bars);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const gap = 2.0;
-    final n = bars.length;
-    final barW = (size.width - (n - 1) * gap) / n;
-    for (var i = 0; i < n; i++) {
-      final ratio = i / max(1, n - 1);
-      final color = ratio < 0.65
-          ? _kBarGreen
-          : ratio < 0.85
-              ? _kBarYellow
-              : _kBarOrange;
-      final h = bars[i] * size.height;
-      final x = i * (barW + gap);
-      canvas.drawRect(
-        Rect.fromLTWH(x, size.height - h, barW, h),
-        Paint()..color = color,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SpectrumPainter old) => true;
-}
-
-class _SpectrumWidget extends StatefulWidget {
-  final bool isPlaying;
-  final double positionSec;
-  const _SpectrumWidget({required this.isPlaying, required this.positionSec});
-
-  @override
-  State<_SpectrumWidget> createState() => _SpectrumWidgetState();
-}
-
-class _SpectrumWidgetState extends State<_SpectrumWidget>
-    with SingleTickerProviderStateMixin {
-  static const _n = 36;
-  final _bars = List<double>.filled(_n, 0);
-  final _phases =
-      List<double>.generate(_n, (_) => Random().nextDouble() * pi * 2);
-  final _speeds =
-      List<double>.generate(_n, (_) => 2.0 + Random().nextDouble() * 4.0);
-  late final Ticker _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker(_tick)..start();
-  }
-
-  void _tick(Duration _) {
-    final t = widget.positionSec;
-    if (widget.isPlaying) {
-      for (var i = 0; i < _n; i++) {
-        var base = 0.4 + 0.3 * sin(t * _speeds[i] + _phases[i]);
-        base += 0.2 * sin(t * _speeds[i] * 1.7 + _phases[i] * 0.6);
-        final target =
-            (base + (Random().nextDouble() - 0.5) * 0.2).clamp(0.0, 1.0);
-        _bars[i] += (target - _bars[i]) * 0.45;
-      }
-    } else {
-      for (var i = 0; i < _n; i++) {
-        _bars[i] *= 0.88;
-        if (_bars[i] < 0.01) _bars[i] = 0;
-      }
-    }
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-        painter: _SpectrumPainter(List.unmodifiable(_bars)),
-        child: const SizedBox.expand(),
-      );
 }
 
 // ── écran principal ───────────────────────────────────────────────────────────
@@ -260,7 +169,6 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
     final isPlaying = _status.isPlaying;
     final posMs = _seeking ? _seekValue.toInt() : _status.posMs;
     final durMs = _status.durMs;
-    final posSec = posMs / 1000.0;
 
     return Scaffold(
       backgroundColor: _kBg,
@@ -296,14 +204,6 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
                         const SizedBox(height: 16),
                         _buildTrackInfo(coverBytes),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          height: 48,
-                          child: _SpectrumWidget(
-                            isPlaying: isPlaying,
-                            positionSec: posSec,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
                         _buildSeekBar(posMs, durMs),
                         const SizedBox(height: 16),
                         _buildMainControls(isPlaying),

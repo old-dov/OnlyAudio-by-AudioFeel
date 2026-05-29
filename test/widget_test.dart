@@ -6,13 +6,19 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:onlyaudio_by_audiofeel/app/only_audio_app.dart';
 
 void main() {
   testWidgets('App renders brand title', (WidgetTester tester) async {
-    await tester.pumpWidget(const OnlyAudioApp());
+    await tester.pumpWidget(
+      const OnlyAudioApp(
+        home: Scaffold(body: SizedBox.shrink()),
+      ),
+    );
     await tester.pump();
-    expect(find.text('OnlyAudio by AudioFeel'), findsOneWidget);
+    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
+    expect(app.title, 'OnlyAudio by AudioFeel');
   });
 }

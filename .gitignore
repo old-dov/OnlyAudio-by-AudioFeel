@@ -57,6 +57,18 @@ __pycache__/
 # Inno Setup
 /installer_output/
 
+# Local user data and accidental playlist exports
+/playlists/
+/exports/
+/user_data/
+*.m3u
+*.m3u8
+*playlist*.json
+*playlist*.txt
+*player_state*.json
+*shared_preferences*.json
+*prefs*.json
+
 # Remote app build
 /remote_app/build/
 /remote_app/.dart_tool/

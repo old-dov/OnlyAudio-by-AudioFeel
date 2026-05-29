@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "onlyaudio_by_audiofeel" "\0"
+            VALUE "CompanyName", "AudioFeel" "\0"
+            VALUE "FileDescription", "OnlyAudio desktop player" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "onlyaudio_by_audiofeel" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 AudioFeel. All rights reserved." "\0"
             VALUE "OriginalFilename", "onlyaudio_by_audiofeel.exe" "\0"
-            VALUE "ProductName", "onlyaudio_by_audiofeel" "\0"
+            VALUE "ProductName", "OnlyAudio" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
