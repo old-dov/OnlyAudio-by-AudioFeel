@@ -221,10 +221,9 @@ class AudioService {
 
         _subscribeMain();
         await _main.setVolume((_volume * 100.0).clamp(0.0, 100.0));
+        await oldMain.stop();
         if (autoPlay) unawaited(_main.play());
-        // Stop then dispose sequentially to prevent audio overlap and
-        // avoid callback-after-delete crash from racing async operations
-        unawaited(oldMain.stop().then((_) => oldMain.dispose()));
+        unawaited(oldMain.dispose());
         return;
       }
 
