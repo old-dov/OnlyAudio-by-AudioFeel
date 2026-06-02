@@ -39,6 +39,8 @@ class PlayerController extends ChangeNotifier {
   Duration _currentPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
   int? _preloadedNextIndex;
+  String _cachedCoverPath = '';
+  String _cachedCoverB64 = '';
 
   List<Track> get playlist => List.unmodifiable(_playlist);
   bool get ready => _ready;
@@ -329,16 +331,24 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Map<String, dynamic> remoteStatusPayload() {
+  Future<Map<String, dynamic>> remoteStatusPayload() async {
     final current = currentTrack;
+    if (current == null) {
+      _cachedCoverPath = '';
+      _cachedCoverB64 = '';
+    } else if (current.path != _cachedCoverPath) {
+      _cachedCoverPath = current.path;
+      final bytes = await _metadataService.coverBytes(current.path);
+      _cachedCoverB64 = bytes != null ? base64Encode(bytes) : '';
+    }
     return {
       'title': current?.title ?? '',
       'artist': current?.artist ?? '',
       'album': current?.album ?? '',
       'year': current?.year,
       'pos': _currentPosition.inMilliseconds,
-      'dur': _currentDuration.inMilliseconds,
-      // 'cover_b64' supprimé côté desktop
+      'dur': currentDuration.inMilliseconds,
+      'cover_b64': _cachedCoverB64,
       'is_playing': !_isPaused,
       'index': _state.currentIndex,
     };

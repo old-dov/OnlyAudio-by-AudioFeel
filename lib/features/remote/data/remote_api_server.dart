@@ -23,9 +23,9 @@ class RemoteApiServer {
           headers: {'content-type': 'application/json'},
         );
       })
-      ..get('/status', (Request request) {
+      ..get('/status', (Request request) async {
         return Response.ok(
-          jsonEncode(controller.remoteStatusPayload()),
+          jsonEncode(await controller.remoteStatusPayload()),
           headers: {'content-type': 'application/json'},
         );
       })

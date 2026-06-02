@@ -1,7 +1,7 @@
 name: onlyaudio_remote
 description: "OnlyAudio Remote - Android remote control for OnlyAudio desktop player"
 publish_to: 'none'
-version: 2.0.0+1
+version: 2.2.0+1
 
 environment:
   sdk: ^3.11.4

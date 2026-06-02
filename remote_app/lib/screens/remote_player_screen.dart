@@ -8,13 +8,12 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/remote_audio_handler.dart';
 import 'connection_screen.dart';
-import 'playlist_screen.dart';
 
 // ── couleurs (identiques au lecteur principal) ────────────────────────────────
-const _kBg        = Color(0xFF000000);
-const _kCyan      = Color(0xFF00C8FF);
-const _kGreen     = Color(0xFF009900);
-const _kOrange    = Color(0xFF8B4500);
+const _kBg     = Color(0xFF000000);
+const _kCyan   = Color(0xFF00C8FF);
+const _kGreen  = Color(0xFF009900);
+const _kOrange = Color(0xFF8B4500);
 
 // ── bouton style lecteur ──────────────────────────────────────────────────────
 Widget _darkBtn(
@@ -67,6 +66,10 @@ class RemotePlayerScreen extends StatefulWidget {
 }
 
 class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _playlistSearchController = TextEditingController();
+  String _playlistQuery = '';
+
   RemoteStatus _status = const RemoteStatus();
   RemotePlaylist _playlist = const RemotePlaylist();
   Timer? _pollTimer;
@@ -159,6 +162,7 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _playlistSearchController.dispose();
     super.dispose();
   }
 
@@ -171,7 +175,11 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
     final durMs = _status.durMs;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: _kBg,
+      drawerScrimColor: Colors.black54,
+      drawer: _buildPlaylistDrawer(),
+      endDrawer: _buildCommandsDrawer(),
       body: Stack(
         children: [
           // ── fond : pochette plein écran assombrie ──
@@ -207,10 +215,6 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
                         _buildSeekBar(posMs, durMs),
                         const SizedBox(height: 16),
                         _buildMainControls(isPlaying),
-                        const SizedBox(height: 10),
-                        _buildSecondaryControls(),
-                        const SizedBox(height: 10),
-                        _buildVolumeRow(),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -251,16 +255,13 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
             icon: const Icon(Icons.playlist_play_rounded, size: 26),
             color: Colors.white70,
             tooltip: 'Playlist',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PlaylistScreen(
-                    api: widget.api,
-                    playlist: _playlist,
-                  ),
-                ),
-              );
-            },
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.tune_rounded, size: 22),
+            color: Colors.white70,
+            tooltip: 'Commandes',
+            onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
           IconButton(
             icon: const Icon(Icons.link_off_rounded, size: 20),
@@ -269,6 +270,202 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
             onPressed: _disconnect,
           ),
         ],
+      ),
+    );
+  }
+
+  // ── volet gauche : playlist ───────────────────────────────────────────────
+  Widget _buildPlaylistDrawer() {
+    final q = _playlistQuery.toLowerCase();
+    final tracks = q.isEmpty
+        ? _playlist.tracks
+        : _playlist.tracks
+            .where((t) =>
+                t.title.toLowerCase().contains(q) ||
+                t.folder.toLowerCase().contains(q))
+            .toList();
+
+    return Drawer(
+      backgroundColor: const Color(0xFF0B0E13),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: const Color(0xFF141414),
+              child: Row(
+                children: [
+                  const Text(
+                    'Playlist',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '(${_playlist.tracks.length})',
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: TextField(
+                controller: _playlistSearchController,
+                style:
+                    const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Rechercher...',
+                  hintStyle: const TextStyle(
+                      color: Colors.white38, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      size: 18, color: Colors.white38),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFF1E1E1E),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
+                onChanged: (v) => setState(() => _playlistQuery = v),
+              ),
+            ),
+            Expanded(
+              child: tracks.isEmpty
+                  ? const Center(
+                      child: Text('Aucun résultat',
+                          style: TextStyle(color: Colors.white38)),
+                    )
+                  : ListView.builder(
+                      itemCount: tracks.length,
+                      itemBuilder: (context, i) {
+                        final track = tracks[i];
+                        final isCurrent =
+                            track.index == _playlist.currentIndex;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: isCurrent
+                                ? const Color(0xFF1B3347)
+                                : Colors.transparent,
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 2),
+                            leading: isCurrent
+                                ? const Icon(Icons.play_arrow_rounded,
+                                    color: Color(0xFF31A9FF), size: 20)
+                                : Text(
+                                    '${track.index + 1}',
+                                    style: const TextStyle(
+                                        color: Colors.white38,
+                                        fontSize: 12),
+                                  ),
+                            title: Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: isCurrent
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: isCurrent
+                                    ? const Color(0xFF31A9FF)
+                                    : Colors.white,
+                                fontSize: 13,
+                              ),
+                            ),
+                            subtitle: Text(
+                              track.folder,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 11),
+                            ),
+                            onTap: () {
+                              widget.api.playIndex(track.index);
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── volet droit : contrôles secondaires ───────────────────────────────────
+  Widget _buildCommandsDrawer() {
+    return Drawer(
+      backgroundColor: const Color(0xFF0B0E13),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: const Color(0xFF141414),
+              child: const Text(
+                'Commandes',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _darkBtn(
+                    'ALÉA',
+                    () => widget.api.toggleShuffle(),
+                    bg: _playlist.isShuffled
+                        ? _kGreen
+                        : const Color(0xFF1E1E1E),
+                    height: 44,
+                  ),
+                  const SizedBox(height: 10),
+                  _darkBtn(
+                    'BOUCLE',
+                    () => widget.api.toggleRepeat(),
+                    bg: _playlist.isRepeat
+                        ? _kGreen
+                        : const Color(0xFF1E1E1E),
+                    height: 44,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'VOLUME',
+                    style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                        letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildVolumeRow(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -292,7 +489,8 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
                   ),
           ),
           child: coverBytes == null
-              ? const Icon(Icons.library_music, size: 38, color: Colors.white24)
+              ? const Icon(Icons.library_music,
+                  size: 38, color: Colors.white24)
               : null,
         ),
         const SizedBox(width: 14),
@@ -326,14 +524,16 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
                 _status.album,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: Colors.white54),
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.white54),
               ),
               const SizedBox(height: 4),
               Text(
                 _formatTrackMeta(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: Colors.white38),
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.white38),
               ),
             ],
           ),
@@ -345,13 +545,15 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
   // ── barre de progression + décompte ──────────────────────────────────────
   Widget _buildSeekBar(int posMs, int durMs) {
     final maxVal = max(1, durMs).toDouble();
-    final curVal = (_seeking ? _seekValue : posMs.toDouble()).clamp(0.0, maxVal);
+    final curVal =
+        (_seeking ? _seekValue : posMs.toDouble()).clamp(0.0, maxVal);
     return Column(
       children: [
         SliderTheme(
           data: SliderThemeData(
             trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            thumbShape:
+                const RoundSliderThumbShape(enabledThumbRadius: 6),
             activeTrackColor: Colors.white70,
             inactiveTrackColor: const Color(0xFF444444),
             thumbColor: Colors.white,
@@ -378,9 +580,9 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
             children: [
               Text(
                 _formatMs(posMs),
-                style: const TextStyle(fontSize: 11, color: Colors.white60),
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.white60),
               ),
-              // décompte centré en grand
               Text(
                 _formatCountdown(posMs, durMs),
                 style: const TextStyle(
@@ -403,7 +605,8 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
       children: [
         SizedBox(
           width: 60,
-          child: _darkBtn('|<', () => widget.api.prev(), height: 52, fontSize: 18),
+          child: _darkBtn('|<', () => widget.api.prev(),
+              height: 52, fontSize: 18),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -418,48 +621,8 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
         const SizedBox(width: 8),
         SizedBox(
           width: 60,
-          child: _darkBtn('>|', () => widget.api.next(), height: 52, fontSize: 18),
-        ),
-      ],
-    );
-  }
-
-  // ── contrôles secondaires : ALÉA | BOUCLE | PLAYLIST ─────────────────────
-  Widget _buildSecondaryControls() {
-    return Row(
-      children: [
-        Expanded(
-          child: _darkBtn(
-            'ALÉA',
-            () => widget.api.toggleShuffle(),
-            bg: _playlist.isShuffled ? _kGreen : const Color(0xFF1E1E1E),
-            height: 36,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _darkBtn(
-            'BOUCLE',
-            () => widget.api.toggleRepeat(),
-            bg: _playlist.isRepeat ? _kGreen : const Color(0xFF1E1E1E),
-            height: 36,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _darkBtn(
-            'PLAYLIST',
-            () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlaylistScreen(
-                  api: widget.api,
-                  playlist: _playlist,
-                ),
-              ),
-            ),
-            height: 36,
-            fg: Colors.white70,
-          ),
+          child: _darkBtn('>|', () => widget.api.next(),
+              height: 52, fontSize: 18),
         ),
       ],
     );
@@ -469,12 +632,14 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
   Widget _buildVolumeRow() {
     return Row(
       children: [
-        _darkBtn('-', () => widget.api.volDown(), fontSize: 18, height: 36),
+        _darkBtn('-', () => widget.api.volDown(),
+            fontSize: 18, height: 36),
         Expanded(
           child: SliderTheme(
             data: SliderThemeData(
               trackHeight: 3,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 6),
               activeTrackColor: _kCyan,
               inactiveTrackColor: const Color(0xFF333333),
               thumbColor: _kCyan,

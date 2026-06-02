@@ -88,6 +88,7 @@ class _PlayerPageState extends State<PlayerPage> {
   double? _seekingValue; // valeur locale pendant le drag du slider
   bool _isFullScreen = false;
   bool _playlistVisible = true;
+  bool _controlsVisible = true;
   Uint8List? _cachedCoverBytes;
   String? _cachedCoverTrackPath;
   DateTime _now = DateTime.now();
@@ -366,8 +367,36 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ),
           Expanded(child: _buildCenterPanel()),
-          Container(width: 1, color: const Color(0xFF252525)),
-          SizedBox(width: 200, child: _buildControlsPanel()),
+          // Volet toggle contrôles
+          GestureDetector(
+            onTap: () => setState(() => _controlsVisible = !_controlsVisible),
+            child: Container(
+              width: 14,
+              color: const Color(0xFF111111),
+              child: Center(
+                child: Icon(
+                  _controlsVisible
+                      ? Icons.chevron_right
+                      : Icons.chevron_left,
+                  size: 14,
+                  color: Colors.white24,
+                ),
+              ),
+            ),
+          ),
+          ClipRect(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              width: _controlsVisible ? 200 : 0,
+              child: OverflowBox(
+                maxWidth: 200,
+                minWidth: 200,
+                alignment: Alignment.centerRight,
+                child: SizedBox(width: 200, child: _buildControlsPanel()),
+              ),
+            ),
+          ),
         ],
       ),
     );
