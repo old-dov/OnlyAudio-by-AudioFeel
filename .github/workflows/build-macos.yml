@@ -1,0 +1,65 @@
+name: Build macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (ex: v2.3.0)'
+        required: true
+        default: 'v2.3.0'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Package .app into zip
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent OnlyAudio.app OnlyAudio-macOS.zip
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: OnlyAudio ${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: build/macos/Build/Products/Release/OnlyAudio-macOS.zip
+          body: |
+            ## Installation macOS
+
+            1. Télécharge **OnlyAudio-macOS.zip**
+            2. Double-clique pour extraire
+            3. Glisse **OnlyAudio.app** dans ton dossier Applications
+            4. Au premier lancement : clic droit → Ouvrir (pour contourner Gatekeeper)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
