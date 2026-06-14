@@ -23,7 +23,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml
           cache: true
 
       - name: Install dependencies
@@ -31,6 +30,10 @@ jobs:
 
       - name: Build macOS
         run: flutter build macos --release
+        env:
+          CODE_SIGNING_ALLOWED: "NO"
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGN_IDENTITY: ""
 
       - name: Package .app into zip
         run: |
