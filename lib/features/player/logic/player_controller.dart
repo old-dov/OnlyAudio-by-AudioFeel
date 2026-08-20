@@ -64,6 +64,21 @@ class PlayerController extends ChangeNotifier {
           ? _playlist[_state.currentIndex]
           : null;
 
+  // La piste que jouera le bouton "suivant" (ou la fin naturelle du titre) :
+  // en mode Répéter c'est la piste courante qui rejoue, sinon celle déjà
+  // choisie par _schedulePreload (respecte l'aléatoire).
+  Track? get nextTrack {
+    if (_playlist.length < 2) return null;
+    if (_state.isRepeat) return currentTrack;
+    final idx = _preloadedNextIndex ??
+        _audioService.nextIndex(
+          currentIndex: _state.currentIndex,
+          length: _playlist.length,
+          shuffled: _state.isShuffled,
+        );
+    return idx < _playlist.length ? _playlist[idx] : null;
+  }
+
   List<int> get visibleIndices {
     final indices = List<int>.generate(_playlist.length, (i) => i);
     switch (_state.sortMode) {

@@ -1,7 +1,7 @@
 name: onlyaudio_by_audiofeel
 description: OnlyAudio by AudioFeel desktop player
 publish_to: "none"
-version: 2.2.0+1
+version: 2.4.0+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

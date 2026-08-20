@@ -746,6 +746,19 @@ class _PlayerPageState extends State<PlayerPage> {
                       style: const TextStyle(
                           fontSize: 11, color: Colors.white38),
                     ),
+                    if (_controller.nextTrack != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'À suivre : ${_controller.nextTrack!.title} — ${_controller.nextTrack!.artist}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white38,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
