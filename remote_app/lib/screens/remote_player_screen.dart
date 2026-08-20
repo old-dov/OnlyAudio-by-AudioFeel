@@ -535,6 +535,19 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
                 style: const TextStyle(
                     fontSize: 11, color: Colors.white38),
               ),
+              if (_status.nextTitle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'À suivre : ${_status.nextTitle} — ${_status.nextArtist}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white38,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

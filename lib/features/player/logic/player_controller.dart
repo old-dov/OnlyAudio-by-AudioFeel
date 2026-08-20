@@ -366,6 +366,8 @@ class PlayerController extends ChangeNotifier {
       'cover_b64': _cachedCoverB64,
       'is_playing': !_isPaused,
       'index': _state.currentIndex,
+      'next_title': nextTrack?.title ?? '',
+      'next_artist': nextTrack?.artist ?? '',
     };
   }
 

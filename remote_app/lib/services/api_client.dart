@@ -12,6 +12,8 @@ class RemoteStatus {
   final String coverBase64;
   final bool isPlaying;
   final int? year;
+  final String nextTitle;
+  final String nextArtist;
 
   const RemoteStatus({
     this.title = '',
@@ -22,6 +24,8 @@ class RemoteStatus {
     this.coverBase64 = '',
     this.isPlaying = false,
     this.year,
+    this.nextTitle = '',
+    this.nextArtist = '',
   });
 
   factory RemoteStatus.fromJson(Map<String, dynamic> json) {
@@ -34,6 +38,8 @@ class RemoteStatus {
       coverBase64: json['cover_b64'] as String? ?? '',
       isPlaying: json['is_playing'] as bool? ?? false,
       year: json['year'] as int?,
+      nextTitle: json['next_title'] as String? ?? '',
+      nextArtist: json['next_artist'] as String? ?? '',
     );
   }
 }
