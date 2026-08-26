@@ -1,0 +1,94 @@
+name: Build Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (ex: v2.3.0)'
+        required: true
+        default: 'v2.3.0'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Meme garde que le workflow CI (tests) et macOS -- une release ne doit jamais sortir de
+      # code casse.
+      - name: Analyze + test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      # installer.iss a une AppVersion figee (pas de pattern #ifndef comme scan_system/
+      # OSINTBox) -- on compile tel quel, comme le fait le script local
+      # scripts/build_windows_release.ps1 (l'utilisateur bump la version dans installer.iss/
+      # pubspec.yaml avant de tagger, meme process qu'aujourd'hui, juste automatise ici).
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files\Inno Setup 7\ISCC.exe" }
+          & $iscc "installer.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.version }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+          }
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      # Renomme pour matcher la convention deja utilisee dans les releases existantes
+      # (ex. OnlyAudio_Setup_v2.4.0.exe, voir les assets de la release v2.4.0).
+      - name: Rename installer with version
+        shell: pwsh
+        run: |
+          Copy-Item "installer_output\OnlyAudio_Setup.exe" "installer_output\OnlyAudio_Setup_${{ steps.version.outputs.tag }}.exe"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: OnlyAudio ${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: installer_output\OnlyAudio_Setup_${{ steps.version.outputs.tag }}.exe
+          body: |
+            ## Installation Windows
+
+            1. Télécharge **OnlyAudio_Setup_${{ steps.version.outputs.tag }}.exe**
+            2. Lance l'installeur et suis les étapes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

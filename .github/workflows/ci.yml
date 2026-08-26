@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  test:
+    # ubuntu-latest : flutter test s'execute sur la VM Dart, ces tests (widget/unit) ne touchent
+    # pas aux plugins natifs specifiques a une plateforme (media_kit) -- pas besoin d'un runner
+    # Windows/macOS ici, contrairement aux jobs de build qui, eux, ciblent une plateforme reelle.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
