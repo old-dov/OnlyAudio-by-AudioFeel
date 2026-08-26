@@ -1,5 +1,14 @@
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # remote_app/ est un projet Flutter independant (son propre pubspec.yaml, l'app Android
+  # compagnon) -- pas un membre de ce package. Sans cette exclusion, `flutter analyze` le
+  # scanne quand meme si son .dart_tool n'a jamais ete resolu (ex. checkout CI frais, jamais
+  # de `flutter pub get` execute dedans), remontant a tort ses erreurs comme si elles
+  # appartenaient a OnlyAudio.
+  exclude:
+    - remote_app/**
+
 linter:
   rules:
     prefer_single_quotes: true
