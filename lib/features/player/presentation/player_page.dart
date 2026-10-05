@@ -12,14 +12,15 @@ import '../../library/data/library_service.dart';
 import '../../remote/data/remote_api_server.dart';
 import '../data/audio_service.dart';
 import '../data/metadata_service.dart';
+import '../data/system_media_service.dart';
 import '../logic/player_controller.dart';
 
 // ── couleurs ─────────────────────────────────────────────────────────────────
-const _kBg     = Color(0xFF000000);
-const _kCyan   = Color(0xFF00C8FF);
-const _kGreen  = Color(0xFF009900);
+const _kBg = Color(0xFF000000);
+const _kCyan = Color(0xFF00C8FF);
+const _kGreen = Color(0xFF009900);
 const _kOrange = Color(0xFF8B4500);
-const _kRed    = Color(0xFF6B1515);
+const _kRed = Color(0xFF6B1515);
 
 // ── bouton style Kivy (rectangulaire, bords arrondis) ─────────────────────────
 Widget _darkBtn(
@@ -80,6 +81,7 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   late final PlayerController _controller;
   late final RemoteApiServer _remoteApi;
+  SystemMediaService? _systemMediaService;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _playlistScrollController = ScrollController();
@@ -122,7 +124,9 @@ class _PlayerPageState extends State<PlayerPage> {
     if (visIdx < 0) return;
     setState(() => _focusedVisibleIndex = visIdx);
     SchedulerBinding.instance.addPostFrameCallback(
-      (_) { if (mounted) _scrollToFocused(); },
+      (_) {
+        if (mounted) _scrollToFocused();
+      },
     );
   }
 
@@ -152,6 +156,19 @@ class _PlayerPageState extends State<PlayerPage> {
     await _updateCoverCache();
     _searchController.text = _controller.searchQuery;
     try {
+      final systemMediaService =
+          await SystemMediaService.initialize(_controller);
+      if (!mounted) {
+        await systemMediaService.dispose();
+        return;
+      }
+      _systemMediaService = systemMediaService;
+    } catch (e, st) {
+      // The player remains usable if a platform media session is unavailable.
+      debugPrint('[SystemMediaService] failed to start: $e');
+      debugPrintStack(stackTrace: st);
+    }
+    try {
       await _remoteApi.start();
     } catch (e) {
       // ignore: avoid_print
@@ -166,6 +183,7 @@ class _PlayerPageState extends State<PlayerPage> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     _playlistScrollController.dispose();
+    unawaited(_systemMediaService?.dispose());
     _remoteApi.stop();
     _controller.disposeController();
     super.dispose();
@@ -185,8 +203,7 @@ class _PlayerPageState extends State<PlayerPage> {
             onInvoke: (_) {
               _searchFocusNode.requestFocus();
               _searchController.selection = TextSelection(
-                  baseOffset: 0,
-                  extentOffset: _searchController.text.length);
+                  baseOffset: 0, extentOffset: _searchController.text.length);
               return null;
             },
           ),
@@ -357,9 +374,7 @@ class _PlayerPageState extends State<PlayerPage> {
               color: const Color(0xFF111111),
               child: Center(
                 child: Icon(
-                  _playlistVisible
-                      ? Icons.chevron_left
-                      : Icons.chevron_right,
+                  _playlistVisible ? Icons.chevron_left : Icons.chevron_right,
                   size: 14,
                   color: Colors.white24,
                 ),
@@ -375,9 +390,7 @@ class _PlayerPageState extends State<PlayerPage> {
               color: const Color(0xFF111111),
               child: Center(
                 child: Icon(
-                  _controlsVisible
-                      ? Icons.chevron_right
-                      : Icons.chevron_left,
+                  _controlsVisible ? Icons.chevron_right : Icons.chevron_left,
                   size: 14,
                   color: Colors.white24,
                 ),
@@ -431,15 +444,12 @@ class _PlayerPageState extends State<PlayerPage> {
           padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
           child: Row(
             children: [
-              Expanded(
-                  child: _darkBtn('OUVRIR PL', null, fg: Colors.white38)),
+              Expanded(child: _darkBtn('OUVRIR PL', null, fg: Colors.white38)),
+              const SizedBox(width: 4),
+              Expanded(child: _darkBtn('SAUVER PL', null, fg: Colors.white38)),
               const SizedBox(width: 4),
               Expanded(
-                  child: _darkBtn('SAUVER PL', null, fg: Colors.white38)),
-              const SizedBox(width: 4),
-              Expanded(
-                  child: _darkBtn(
-                      'VIDER', () => _controller.clearPlaylist())),
+                  child: _darkBtn('VIDER', () => _controller.clearPlaylist())),
             ],
           ),
         ),
@@ -454,12 +464,11 @@ class _PlayerPageState extends State<PlayerPage> {
                   child: TextField(
                     controller: _searchController,
                     focusNode: _searchFocusNode,
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.white),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Rechercher...',
-                      hintStyle: const TextStyle(
-                          fontSize: 12, color: Colors.white30),
+                      hintStyle:
+                          const TextStyle(fontSize: 12, color: Colors.white30),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 5),
@@ -491,9 +500,12 @@ class _PlayerPageState extends State<PlayerPage> {
             child: visible.isEmpty
                 ? LayoutBuilder(
                     builder: (context, constraints) {
-                      final logoHeight = constraints.maxHeight < 150 ? 56.0 : 92.0;
-                      final titleSize = constraints.maxHeight < 150 ? 12.0 : 15.0;
-                      final bodySize = constraints.maxHeight < 150 ? 10.0 : 12.0;
+                      final logoHeight =
+                          constraints.maxHeight < 150 ? 56.0 : 92.0;
+                      final titleSize =
+                          constraints.maxHeight < 150 ? 12.0 : 15.0;
+                      final bodySize =
+                          constraints.maxHeight < 150 ? 10.0 : 12.0;
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -504,7 +516,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                 opacity: 0.92,
                                 child: _brandLogo(height: logoHeight),
                               ),
-                              SizedBox(height: constraints.maxHeight < 150 ? 8 : 14),
+                              SizedBox(
+                                  height: constraints.maxHeight < 150 ? 8 : 14),
                               Text('Bienvenue dans OnlyAudio',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
@@ -512,10 +525,12 @@ class _PlayerPageState extends State<PlayerPage> {
                                       fontSize: titleSize,
                                       fontWeight: FontWeight.bold)),
                               const SizedBox(height: 6),
-                              Text('Ajoute un fichier ou un dossier pour commencer',
+                              Text(
+                                  'Ajoute un fichier ou un dossier pour commencer',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
-                                      color: Colors.white38, fontSize: bodySize)),
+                                      color: Colors.white38,
+                                      fontSize: bodySize)),
                             ],
                           ),
                         ),
@@ -524,34 +539,28 @@ class _PlayerPageState extends State<PlayerPage> {
                   )
                 : Focus(
                     onKeyEvent: (node, event) {
-                      if (event is! KeyDownEvent &&
-                          event is! KeyRepeatEvent) {
+                      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
                         return KeyEventResult.ignored;
                       }
-                      if (event.logicalKey ==
-                          LogicalKeyboardKey.arrowDown) {
+                      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
                         setState(() {
-                          _focusedVisibleIndex =
-                              (_focusedVisibleIndex + 1)
-                                  .clamp(0, visible.length - 1);
+                          _focusedVisibleIndex = (_focusedVisibleIndex + 1)
+                              .clamp(0, visible.length - 1);
                         });
                         _scrollToFocused();
                         return KeyEventResult.handled;
                       } else if (event.logicalKey ==
                           LogicalKeyboardKey.arrowUp) {
                         setState(() {
-                          _focusedVisibleIndex =
-                              (_focusedVisibleIndex - 1)
-                                  .clamp(0, visible.length - 1);
+                          _focusedVisibleIndex = (_focusedVisibleIndex - 1)
+                              .clamp(0, visible.length - 1);
                         });
                         _scrollToFocused();
                         return KeyEventResult.handled;
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.enter) {
+                      } else if (event.logicalKey == LogicalKeyboardKey.enter) {
                         if (_focusedVisibleIndex >= 0 &&
                             _focusedVisibleIndex < visible.length) {
-                          _controller
-                              .playAt(visible[_focusedVisibleIndex]);
+                          _controller.playAt(visible[_focusedVisibleIndex]);
                         }
                         return KeyEventResult.handled;
                       }
@@ -563,8 +572,7 @@ class _PlayerPageState extends State<PlayerPage> {
                       itemBuilder: (context, i) {
                         final realIndex = visible[i];
                         final track = _controller.playlist[realIndex];
-                        final isPlaying =
-                            realIndex == _controller.currentIndex;
+                        final isPlaying = realIndex == _controller.currentIndex;
                         final isFocused = i == _focusedVisibleIndex;
                         return InkWell(
                           onTap: () {
@@ -578,8 +586,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                 : isFocused
                                     ? const Color(0xFF161622)
                                     : Colors.transparent,
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: Row(
                               children: [
                                 SizedBox(
@@ -588,9 +595,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                     '${i + 1}',
                                     textAlign: TextAlign.right,
                                     style: TextStyle(
-                                      color: isPlaying
-                                          ? _kCyan
-                                          : Colors.white30,
+                                      color:
+                                          isPlaying ? _kCyan : Colors.white30,
                                       fontSize: 10,
                                     ),
                                   ),
@@ -603,9 +609,8 @@ class _PlayerPageState extends State<PlayerPage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isPlaying
-                                          ? _kCyan
-                                          : Colors.white70,
+                                      color:
+                                          isPlaying ? _kCyan : Colors.white70,
                                       fontWeight: isPlaying
                                           ? FontWeight.bold
                                           : FontWeight.normal,
@@ -629,10 +634,9 @@ class _PlayerPageState extends State<PlayerPage> {
   Widget _buildCenterPanel() {
     final track = _controller.currentTrack;
     final coverBytes = _cachedCoverBytes;
-    final durMs =
-        max(1, _controller.currentDuration.inMilliseconds).toDouble();
-    final posMs = min(
-        _controller.currentPosition.inMilliseconds.toDouble(), durMs);
+    final durMs = max(1, _controller.currentDuration.inMilliseconds).toDouble();
+    final posMs =
+        min(_controller.currentPosition.inMilliseconds.toDouble(), durMs);
 
     if (track == null) {
       return LayoutBuilder(
@@ -651,7 +655,8 @@ class _PlayerPageState extends State<PlayerPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _brandLogo(height: compact ? 110 : 180, fit: BoxFit.contain),
+                    _brandLogo(
+                        height: compact ? 110 : 180, fit: BoxFit.contain),
                     SizedBox(height: compact ? 10 : 18),
                     Text(
                       'OnlyAudio',
@@ -697,8 +702,7 @@ class _PlayerPageState extends State<PlayerPage> {
                   image: coverBytes == null
                       ? null
                       : DecorationImage(
-                          image: MemoryImage(coverBytes),
-                          fit: BoxFit.cover),
+                          image: MemoryImage(coverBytes), fit: BoxFit.cover),
                 ),
                 child: coverBytes == null
                     ? const Icon(Icons.library_music,
@@ -735,16 +739,16 @@ class _PlayerPageState extends State<PlayerPage> {
                       track.album,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.white54),
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.white54),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _formatTrackMeta(track),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.white38),
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.white38),
                     ),
                     if (_controller.nextTrack != null) ...[
                       const SizedBox(height: 2),
@@ -772,8 +776,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 width: 36,
                 child: Text(
                   _formatDuration(_controller.currentPosition),
-                  style:
-                      const TextStyle(fontSize: 11, color: Colors.white60),
+                  style: const TextStyle(fontSize: 11, color: Colors.white60),
                 ),
               ),
               Expanded(
@@ -804,8 +807,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 child: Text(
                   _formatDuration(_controller.currentDuration),
                   textAlign: TextAlign.right,
-                  style:
-                      const TextStyle(fontSize: 11, color: Colors.white60),
+                  style: const TextStyle(fontSize: 11, color: Colors.white60),
                 ),
               ),
             ],
@@ -867,9 +869,7 @@ class _PlayerPageState extends State<PlayerPage> {
                 child: _darkBtn(
                   'BOUCLE',
                   () => _controller.toggleRepeat(),
-                  bg: _controller.isRepeat
-                      ? _kGreen
-                      : const Color(0xFF1E1E1E),
+                  bg: _controller.isRepeat ? _kGreen : const Color(0xFF1E1E1E),
                 ),
               ),
               const SizedBox(width: 4),
@@ -884,8 +884,8 @@ class _PlayerPageState extends State<PlayerPage> {
             children: [
               _darkBtn(
                 '-',
-                () => _controller.setVolume(
-                    (_controller.volume - 0.05).clamp(0.0, 1.0)),
+                () => _controller
+                    .setVolume((_controller.volume - 0.05).clamp(0.0, 1.0)),
                 fontSize: 16,
                 height: 30,
               ),
@@ -908,8 +908,8 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
               _darkBtn(
                 '+',
-                () => _controller.setVolume(
-                    (_controller.volume + 0.05).clamp(0.0, 1.0)),
+                () => _controller
+                    .setVolume((_controller.volume + 0.05).clamp(0.0, 1.0)),
                 bg: _kOrange,
                 fontSize: 16,
                 height: 30,
@@ -920,6 +920,7 @@ class _PlayerPageState extends State<PlayerPage> {
       ),
     );
   }
+
   // ── helpers ───────────────────────────────────────────────────────────────
   void _scrollToFocused() {
     if (_focusedVisibleIndex < 0) return;

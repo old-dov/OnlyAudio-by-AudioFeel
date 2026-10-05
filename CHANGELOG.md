@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.0-beta.1] - 2026-10-05
+
+### Nouveautés
+- Commandes multimédias Bluetooth et touches de casque sur le lecteur desktop
+- Intégration SMTC sous Windows, MPRIS sous Linux et centre de contrôle sous macOS
+- Synchronisation du titre, de l'artiste, de l'album, de la durée, de la position et de l'état lecture/pause
+- Commandes système : lecture, pause, piste précédente, piste suivante et seek
+
 ## [2.0.0] - 2026-04-12
 
 ### Nouveautés
