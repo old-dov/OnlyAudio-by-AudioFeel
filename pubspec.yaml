@@ -1,7 +1,7 @@
 name: onlyaudio_by_audiofeel
 description: OnlyAudio by AudioFeel desktop player
 publish_to: "none"
-version: 2.4.0+1
+version: 2.5.0-beta.1+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -20,6 +20,9 @@ dependencies:
   media_kit_libs_macos_audio: ^1.0.9
   media_kit_libs_linux: ^1.0.9
   window_manager: ^0.4.0
+  audio_service: ^0.18.19
+  audio_service_win: ^0.0.3
+  audio_service_mpris: ^0.2.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0
