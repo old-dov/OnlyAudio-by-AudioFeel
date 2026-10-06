@@ -83,7 +83,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: OnlyAudio ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: installer_output\OnlyAudio_Setup_${{ steps.version.outputs.tag }}.exe
           body: |
             ## Installation Windows

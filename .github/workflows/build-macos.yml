@@ -57,7 +57,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: OnlyAudio ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: build/macos/Build/Products/Release/OnlyAudio-macOS.zip
           body: |
             ## Installation macOS

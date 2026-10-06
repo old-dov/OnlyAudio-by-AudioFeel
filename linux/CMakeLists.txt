@@ -74,6 +74,14 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# flutter_media_metadata 1.0.0+1 triggers unused-but-set-variable warnings
+# with Clang 18. Keep warnings-as-errors for the rest of the application while
+# allowing this third-party plugin to compile on Ubuntu 24.04 and newer.
+if(TARGET flutter_media_metadata_plugin)
+  target_compile_options(flutter_media_metadata_plugin PRIVATE
+    -Wno-error=unused-but-set-variable)
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

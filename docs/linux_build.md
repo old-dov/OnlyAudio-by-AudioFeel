@@ -13,7 +13,7 @@ Guide complet pour compiler et distribuer OnlyAudio sur Linux.
 sudo apt-get install -y \
   clang cmake ninja-build pkg-config \
   libgtk-3-dev liblzma-dev libstdc++-12-dev \
-  libmpv-dev
+  libmpv-dev libmediainfo-dev
 
 # Fedora / RHEL
 sudo dnf install -y \
