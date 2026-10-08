@@ -114,10 +114,12 @@ class _RemotePlayerScreenState extends State<RemotePlayerScreen> {
         album: status.album.isNotEmpty ? status.album : 'Album Inconnu',
         position: Duration(milliseconds: max(0, status.posMs)),
         duration: Duration(milliseconds: max(0, status.durMs)),
+        coverBase64: status.coverBase64,
       );
     } catch (_) {
       if (!mounted) return;
       setState(() => _connected = false);
+      _audioHandler?.markDisconnected();
     }
   }
 
